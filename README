@@ -1,0 +1,40 @@
+README:
+11.02.2020
+
+Step 1: CONVERT DATA FROM JSON TO CSV.
+DATA_UTILS: STANDALONE
+I used dataset_utils with the following configurations
+input size = 400
+output size = 100
+----------------------------
+
+STEP 2: GENERATE DICTIONARIES
+DICT_UTILS: STANDALONE
+I used dict_utils and got the following dict len: 540328
+-----------------------------
+STEP 3: TRANSFORM DATA
+DATASET_UTILS: STANDALONE
+
+Separate each input instance as  2 .pt files: source + target
+get length of all input files and store it in file size so it can be added in config file
+
+-----------------------------
+STEP 4: LOADING DATASET
+LOADER_UTILS: MODIFIED FOR MEMORY OPTIMIZATION
+
+
+
+uploaded 08-nov version on githhub
+
+THIS IS NOW VERSION OF 13-Nov
+changes to do
+
+model class
+checkpoint
+gradient clipping
+norm
+add rouge
+dict freq feature..
+best model
+arg parse resume
+
