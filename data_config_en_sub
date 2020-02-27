@@ -1,0 +1,14 @@
+{
+"in_folder"   : "/hits/basement/nlp/fatimamh/test_data",
+"dict_folder" : "/hits/basement/nlp/fatimamh/test_data/dict",
+"text_dict_f"			:"en_text_vocab_f.pkl",
+"sum_dict_f"			:"en_sum_vocab_f.pkl",
+"text_dict_c"			:"en_text_vocab_c.pkl",
+"sum_dict_c"			:"en_sum_vocab_c.pkl",
+"json_files"  : ["en_train_sub.json","en_val_sub.json","en_test_sub.json"],
+"csv_files"   : ["en_train_sub.csv", "en_val_sub.csv", "en_test_sub.csv"],
+"max_text"	  : 400,
+"max_sum"	  : 100,
+"text_vocab"			: 30000,
+"sum_vocab"				: 10000,  
+}

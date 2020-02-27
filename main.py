@@ -23,99 +23,108 @@ Import libraries
 import argparse
 import resource
 import time
-import os
-import sys
-from os import path
 import torch
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-
-import torch
+import logging
 torch.backends.cudnn.deterministic = True
 
+# config file and memory utils
 from lib.utils.file_utils import read_content
 from lib.utils.memory_utils import get_size
+
+from lib.utils.main_utils import data_processing
+from lib.utils.main_utils import load_vocabs
+from lib.utils.main_utils import check_model
+from lib.utils.main_utils import check_summaries
+from lib.utils.main_utils import check_config_files
+
 from lib.utils.model_utils import model_param
+
 from lib.model.s2s_model import S2SModel
-from lib.model.encoder import Encoder
-from lib.model.decoder import AttentionDecoder
 
 from lib.training import train_model
-from lib.inference import test_model
-from lib.evaluation import rouge_evaluation
+#from lib.inference import test_model
+#from lib.evaluation import rouge_evaluation
 from rouge import Rouge
+import numpy as np
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description = 'Help for the main module')
+parser.add_argument('--p', type = bool,   default = False,   help = 'To process data.')
+parser.add_argument('--v', type = bool,   default = False,   help = 'To load vocabularies.')
 parser.add_argument('--t', type = bool,   default = False,   help = 'To train the model.')
 parser.add_argument('--i', type = bool,   default = False,   help = 'To test the model on test data.')
 parser.add_argument('--e', type = bool,   default = False,   help = 'To evaluate the model.')
 parser.add_argument('--a', type = bool,   default = True,    help = 'To train, test and evaluate the model.')
-parser.add_argument('--c', type = str,    default = '/hits/basement/nlp/fatimamh/s2s_summarization/configuration',   
+parser.add_argument('--dc', type = str,    default = '/hits/basement/nlp/fatimamh/s2s_summarization/data_config_en_sub',   
                                                             help = 'Configuration file')
+parser.add_argument('--mc', type = str,    default = '/hits/basement/nlp/fatimamh/s2s_summarization/model_config_sub',   
+                                                            help = 'Configuration file')
+
+
+  
+
 '''----------------------------------------------------------------
 '''
 if __name__ == "__main__":
+    args       = parser.parse_args()
+    #print(args)   
+    d_config   = eval(read_content(args.dc))
+    m_config   = eval(read_content(args.mc))
+    check_config_files(d_config, m_config) 
     
-    args       = parser.parse_args()     
-    configure  = eval(read_content(args.c))
-    print(type(configure), configure)
-    is_trained = False
-    is_tested  = False
+    '''------------------------------------------------------------
+    Step 1: Prepare data tensors and language objects
+    ------------------------------------------------------------'''
+    if args.p:
+        data_processing(d_config)
+
+    input_vocab = None 
+    output_vocab = None
+    if args.v:
+        input_vocab, output_vocab = load_vocabs(m_config)
+    
+    '''------------------------------------------------------------
+    Step 2: Model and its parameters
+    ------------------------------------------------------------'''        
+    is_trained = check_model(m_config)
+    is_tested = check_summaries(m_config)
     is_scored  = False
 
-    bm_file    = os.path.join(configure['ckpt_folder'], configure["bm_f"])
-    out_file   = os.path.join(configure['out_folder'], configure["out_f"])
-
-
-    '''------------------------------------------------------------
-    STEP 1: Prepare data tensors and language objects:
-                As I have done processing on sample data and data 
-                is saved, therefore I disabled the function calls. 
-    ------------------------------------------------------------'''
-
-    '''
-    
-    if path.exists(bm_file):
-        is_trained = True
-
-    if path.exists(out_file):
-        is_tested = True
-
-    
     if args.t or args.i or args.e:
         args.a = False
 
     prog_start_time = time.time()
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    print('\n----------------------Printing all arguments:--------------------\n{}\n---------------------------------------------------\n'.format(args)) 
+    print('\n----------------------Printing all arguments:--------------------\n\
+        {}\n---------------------------------------------------\n'.format(args)) 
     if args.a or args.t or args.i:
-
-        torch.cuda.empty_cache()
-        #Declare the hyperparameter
-        
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         print(device)
-        
-        START_IDX  = 2 
-        PAD_IDX    = 1 
-        #print(PAD_IDX)
-        #Declare the model
-        encoder = 
-        decoder = 
-        encoder = EncoderRNN(input_size, emb_size, hidden_size).to(device)
-    decoder = AttnDecoderRNN(emb_size, hidden_size, output_size, dropout=0.1).to(device)
-        model = S2SModel(device, encoder, decoder)#.to(device) # it will make object of model including encoder + decoder  
+        '''------------------------------------------------------------
+        Step 2: Declare the model
+        ------------------------------------------------------------'''
+        model = S2SModel(device, m_config)
         model = model.to(device)
+
         print('-------------Model layers-------------------------\n{}\
-            \n-------------------------------------------------\n'.format(model))
+            \n-----------------------------------------------\n'.format(model))
+
+        '''------------------------------------------------------------
+        Step 3: Declare the hyperparameter
+        ------------------------------------------------------------'''
+        #optimizer, criterion, clip = model_param(model, m_config)
+        enc_optimizer, dec_optimizer, criterion = model_param(model, m_config)
+        #print(enc_optimizer)
+        #print(dec_optimizer)
+        #print(criterion)
         
-        #Set model parameters
-        optimizer, criterion, clip = model_param(model, configure, PAD_IDX)
+        
         if args.a or args.t:  
             print('In Training')      
-            is_trained = train_model(device, configure, model, criterion, optimizer, clip)    
-        
+            is_trained = train_model(device, m_config, model, criterion, enc_optimizer, dec_optimizer)    
+        '''
         if args.a or args.i: 
             if is_trained:
                 print('In Inference')

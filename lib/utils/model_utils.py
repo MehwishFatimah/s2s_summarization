@@ -15,17 +15,26 @@ import torch.optim as optim
 
 '''----------------------------------------------------------------
 '''
-def model_param(model, configure, PAD_IDX):
+def model_param(model, config):
     # Optim connect it with model
-    optimizer = optim.SGD(model.parameters(), lr = configure['learning_rate'], momentum = configure['momentum']) # define optim
+    enc_optimizer = optim.SGD(filter(lambda x: x.requires_grad, model.parameters()), 
+                                 lr = config["learning_rate"], 
+                                 momentum = config["momentum"])
+    dec_optimizer = optim.SGD(filter(lambda x: x.requires_grad, model.parameters()), 
+                                 lr = config["learning_rate"], 
+                                 momentum = config["momentum"]) 
+    #enc_optimizer = optim.SGD(filter(lambda x: x.requires_grad, model.parameters()),
+    #                              lr=learning_rate)
+    #dec_optimizer = optim.SGD(filter(lambda x: x.requires_grad, model.parameters()),
+    #                              lr=learning_rate)
 
     # loss function
-    criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
+    criterion = nn.CrossEntropyLoss(ignore_index = config["PAD_index"])
     
     # gradient clip
-    clip = configure['grad_clip']
+    #clip = config["grad_clip"]
 
-    return optimizer, criterion, clip
+    return enc_optimizer, dec_optimizer, criterion#, clip
 
 '''----------------------------------------------------------------
 '''
@@ -56,3 +65,17 @@ def load_checkpoint(file):
     state = torch.load(file)  # save checkpoint
     print('Epoch: {}, Best_loss: {}'.format(state['epoch'], state['loss']))
     return state
+
+'''----------------------------------------------------------------
+'''
+# TO DO: VErify
+def total_params(model):
+    for parameter in model.parameters():
+            print(parameter.size(), len(parameter)) 
+            print()
+
+def trainable_params(model):     
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+        
+    print('params: {}'.format(params))

@@ -1,0 +1,8 @@
+{
+"in_folder"   : "/hits/basement/nlp/fatimamh/s2s_data",
+"dict_folder" : "/hits/basement/nlp/fatimamh/s2s_data/dict",
+"json_files"  : ["en_train_all.json","en_val_all.json","en_test_all.json"],
+"csv_files"   : ["en_train_all.csv", "en_val_all.csv", "en_test_all.csv"],
+"max_text"    : 400,
+"max_sum"     : 100,  
+}

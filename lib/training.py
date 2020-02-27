@@ -31,7 +31,7 @@ import math
 import os
 
 import subprocess
-from utils.plot_utils import showPlot
+from lib.utils.plot_utils import showPlot
 from torch.autograd import Variable
 
 '''----------------------------------------------------------------
@@ -53,14 +53,18 @@ def train(device, model, data_loader, enc_optimizer, dec_optimizer, criterion, c
     model.train()
     # define epoch loss
     epoch_loss = 0
+    batch_num = 1
+    total_batch = len(data_loader)
     for input_tensor, target_tensor in data_loader:
+        print('\t---Train Batch: {}/{}---'.format(batch_num, total_batch))
         input_tensor, target_tensor = input_tensor.to(device), target_tensor.to(device) 
         '''------------------------------------------------------------
         3: Clear old gradients from the last step              
         ------------------------------------------------------------'''
         enc_optimizer.zero_grad()
         dec_optimizer.zero_grad()
-        loss, predictions, attentions = model(input_tensor, target_tensor, criterion, teacher_forcing=True)
+        #loss, predictions, attentions = model(input_tensor, target_tensor, criterion, teacher_forcing=True)
+        loss, predictions = model(input_tensor, target_tensor, criterion, teacher_forcing=True)
         #print('predictins: {}'.format(predictions.shape))
         #print('target_tensor: {}'.format(target_tensor.shape))
         '''------------------------------------------------------------
@@ -78,6 +82,7 @@ def train(device, model, data_loader, enc_optimizer, dec_optimizer, criterion, c
         enc_optimizer.step()
         dec_optimizer.step()
         epoch_loss += loss.item()
+        batch_num+=1
     
     epoch_loss /= len(data_loader)
     return epoch_loss   
@@ -86,7 +91,7 @@ def train(device, model, data_loader, enc_optimizer, dec_optimizer, criterion, c
 '''----------------------------------------------------------------
 '''
 
-def evaluate(device, model, data_loader, criterion, max_length=MAX_LENGTH, testing= True):
+def evaluate(device, model, data_loader, criterion, testing= True):
     ''' Evaluation loop for the model to evaluate.
     Args:
         model: A Seq2Seq model instance.
@@ -103,13 +108,18 @@ def evaluate(device, model, data_loader, criterion, max_length=MAX_LENGTH, testi
     all_predictions = []
     # we don't need to update the model parameters. only forward pass.
     with torch.no_grad():
+        batch_num = 1
+        total_batch = len(data_loader)
        
         for input_tensor, target_tensor in data_loader:
+            print('\t---Eval Batch: {}/{}---'.format(batch_num, total_batch))
             input_tensor, target_tensor = input_tensor.to(device), target_tensor.to(device)    
-            loss, predictions, attentions = model(input_tensor, target_tensor, criterion, teacher_forcing=False)
+            #loss, predictions, attentions = model(input_tensor, target_tensor, criterion, teacher_forcing=False)
+            loss, predictions = model(input_tensor, target_tensor, criterion, teacher_forcing=False)
             if testing:
                 all_predictions.append(predictions)
             epoch_loss += loss.item()
+            batch_num +=1
 
     epoch_loss /= len(data_loader)
     if testing:
@@ -120,40 +130,49 @@ def evaluate(device, model, data_loader, criterion, max_length=MAX_LENGTH, testi
 '''----------------------------------------------------------------
 '''
 
- 
-def train_model(device, configure, model, train_loader, val_loader, model, criterion, enc_optimizer, dec_optimizer):
+def train_model(device, config, model, criterion, enc_optimizer, dec_optimizer):
 
-    epochs          = configure['epocs']
-    #learning_rate   = configure['learning_rate']
-    clip            = configure['grad_clip']
-    print_every     = configure['print_every']
-    plot_every      = configure['plot_every']
+    epochs          = config["epochs"]
+    clip            = config["grad_clip"]
+    print_every     = config["print_every"]
+    plot_every      = config["plot_every"]
 
-    bm_file 	= os.path.join(configure['ckpt_folder'], configure["bm_f"])
-    ckpt_file   = os.path.join(configure['ckpt_folder'], configure["ckpt_f"])
-	#model_file = 'best-model.pth.tar'
+    bm_file 	= os.path.join(config["check_point_folder"], config["best_model_file"])
+    ckpt_file   = os.path.join(config["check_point_folder"], config["check_point_file"])
+	#model_file = "best-model.pth.tar"
+
+    batch_size     = config["batch_size"]
+    train_folder   = config["train_folder"]
+    train_size     = config["train_docs"] + 1
+    train_list_ids = [*range(1, train_size, 1)]
+    train_loader = data_loader(train_folder, train_list_ids, batch_size = batch_size)
+
+    val_folder   = config["val_folder"]
+    val_size     = config["val_docs"] + 1
+    val_list_ids = [*range(1, val_size, 1)]
+    val_loader = data_loader(val_folder, val_list_ids, batch_size = batch_size)
 
     if path.exists(ckpt_file):
         checkpoint 		= load_checkpoint(ckpt_file)
-        s_epoch 		= checkpoint['epoch']
-        best_valid_loss = checkpoint['loss']
+        s_epoch 		= checkpoint["epoch"]
+        best_valid_loss = checkpoint["loss"]
 		
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        model.load_state_dict(checkpoint["state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
 	
     elif path.exists(bm_file):
         checkpoint 		= load_checkpoint(bm_file)
-        s_epoch 		= checkpoint['epoch']
-        best_valid_loss = checkpoint['loss']
+        s_epoch 		= checkpoint["epoch"]
+        best_valid_loss = checkpoint["loss"]
 		
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        model.load_state_dict(checkpoint["state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
 
     else:
         s_epoch = 1
         best_valid_loss = float('inf')
 
-    e_epoch = configure['epochs']
+    e_epoch = config["epochs"]
     print('s_epoch: {} | e_epoch: {}'.format(s_epoch, e_epoch))
 
     e_count = []
@@ -244,8 +263,8 @@ def train_model(device, configure, model, train_loader, val_loader, model, crite
     showPlot(plot_epochs, plot_train_losses, plot_valid_losses)
 
     df = pd.DataFrame({'epoch': e_count, 't_loss': t_loss, 'v_loss': v_loss, 'b_loss': b_loss})
-    f_name = str(int(epoch)) + '_' + configure['loss_f']
-    file = os.path.join(configure['ckpt_folder'], f_name)
+    f_name = str(int(epoch)) + '_' + config['loss_f']
+    file = os.path.join(config['ckpt_folder'], f_name)
     df.to_csv(file)
     print(len(df), df.columns, df.head(5))
     return True
