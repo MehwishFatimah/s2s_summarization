@@ -14,20 +14,22 @@ from torch.autograd import Variable
 
 
 class Decoder(nn.Module):
-    def __init__(self, device, configure, output_dim):
+    def __init__(self, device, config):
         super(Decoder, self).__init__()
 
         # Declare the hyperparameter
-        self.emb_dim      = configure['emb_dim']
-        self.hidden_dim   = configure['hid_dim']#*2
-        self.output_dim   = output_dim
-        self.n_layers     = configure['num_layers']
-        self.dropout      = configure['dec_drop']
-
-        self.embedding = nn.Embedding(self.output_dim, self.hidden_dim)
+        self.device = device
+        self.emb_dim      = config["emb_dim"]
+        self.hidden_dim   = config["hid_dim"]#*2
+        self.output_dim   = config["sum_vocab"]
+        self.n_layers     = config["num_layers"]
+        self.dropout      = config["dec_drop"]
+        if self.n_layers == 1:
+            self.dropout = 0
+        self.embedding = nn.Embedding(self.output_dim, self.emb_dim) # emb dim
         #self.embedding.weight.data.copy_(torch.eye(hidden_dim))
         self.embedding.weight.requires_grad = False
-        self.gru = nn.GRU(self.hidden_dim, self.hidden_dim)
+        self.gru = nn.GRU(self.emb_dim, self.hidden_dim)
         self.out = nn.Linear(self.hidden_dim, self.output_dim)
         self.softmax = nn.LogSoftmax(dim=1)  
 
@@ -57,9 +59,9 @@ class Decoder(nn.Module):
 Att-class
 '''
 class Attn(nn.Module):
-    def __init__(self, method, hidden_dim):
+    def __init__(self, device, method, hidden_dim):
         super(Attn, self).__init__()
-        
+        self.device = device
         self.method = method
         self.hidden_dim = hidden_dim
         
@@ -80,7 +82,7 @@ class Attn(nn.Module):
 
         # Create variable to store attention energies
         attn_energies = Variable(torch.zeros(this_batch_size, max_len)) # B x S
-        attn_energies = attn_energies.to(device)
+        attn_energies = attn_energies.to(self.device)
         #print('Att:\tattn_energies: {}'.format(attn_energies.shape))
         
         # For each batch of encoder outputs
@@ -122,40 +124,44 @@ LuongAttnDecoderRNN
 ''' 
 class AttentionDecoder(nn.Module):
     
-    def __init__(self, device, configure, output_dim, attn_model='general'):
+    def __init__(self, device, config, attn_model='general'):
         super(AttentionDecoder, self).__init__()
 
         # Declare the hyperparameter
         self.device       = device
-        self.embed_dim    = configure['emb_dim']
-        self.hidden_dim   = configure['hid_dim']#*2
-        self.output_dim   = output_dim
-        self.n_layers     = configure['num_layers']
-        self.dropout      = configure['dec_drop']
+        self.emb_dim      = config["emb_dim"]
+        self.hidden_dim   = config["hid_dim"]#*2
+        self.output_dim   = config["sum_vocab"]
+        self.n_layers     = config["num_layers"]
+        self.dropout      = config["dec_drop"]
+        if self.n_layers == 1:
+            self.dropout = 0
         self.attn_model = attn_model
         
         # Define layers
-        self.embedding = nn.Embedding(self.output_dim, self.embed_dim)
+        self.embedding = nn.Embedding(self.output_dim, self.emb_dim)
         self.embedding_dropout = nn.Dropout(self.dropout)
-        self.gru = nn.GRU(self.embed_dim, self.hidden_dim, self.n_layers, dropout=self.dropout)
+        self.gru = nn.GRU(self.emb_dim, self.hidden_dim, self.n_layers, dropout=self.dropout)
         self.concat = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         self.out = nn.Linear(self.hidden_dim, self.output_dim)
         
         # Choose attention model
         if attn_model != 'none':
-            self.attn = Attn(self.attn_model, self.hidden_dim)
+            self.attn = Attn(self.device, self.attn_model, self.hidden_dim)
 
     def forward(self, input, hidden, encoder_outputs):
         # Note: we run this one step at a time
-
+        print('---------------------------')
+        #print('Decoder:\tinput: {}\n\t\t\thidden: {}\n\t\t\tencoder_outputs: {}'\
+        #    .format(input.shape, hidden.shape, encoder_outputs.shape))
         # Get the embedding of the current input word (last output word)
         batch_size = input.size(0)
         #print('Decoder:\tbatch_size: {}'.format(batch_size))
         embedded = self.embedding(input)
         embedded = self.embedding_dropout(embedded)
         #print('Decoder:\tembedded : {}'.format(embedded.shape))
-        embedded = embedded.view(1, batch_size, self.embed_dim) # S=1 x B x N
-        #print('Decoder:\tembedded : {}'.format(embedded.shape))
+        embedded = embedded.view(1, batch_size, self.emb_dim) # S=1 x B x N
+        print('Decoder:\tembedded : {}'.format(embedded.shape))
         
         # Get current hidden state from input word and last hidden state
         rnn_output, hidden = self.gru(embedded, hidden)
@@ -185,9 +191,10 @@ class AttentionDecoder(nn.Module):
 
         # Finally predict next token (Luong eq. 6, without softmax)
         output = self.out(concat_output)
-        #print('Decoder:\toutput: {}'.format(output.shape))
+        print('Decoder:\toutput: {}'.format(output.shape))
         # Return final output, hidden state, and attention weights (for visualization)
-        return output, hidden, attn_weights
+        print('---------------------------')
+        return output, hidden #, attn_weights
         
 
     def initHidden(self):

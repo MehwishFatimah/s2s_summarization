@@ -9,6 +9,7 @@ FINALIZED
 import os
 import chardet
 import warnings
+import pickle
 
 '''-----------------------------------------------------------------------
 Takes file path with file name, reads it as bite returns the content.
@@ -66,3 +67,4 @@ def get_files(folder, ext=".pt"):
         if file.endswith(ext):
             files.append(file)
     return files
+

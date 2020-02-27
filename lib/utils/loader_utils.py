@@ -32,11 +32,12 @@ class WikiDataset(data.Dataset):
         #print('ID: {}'.format(ID))
         # Load data and get label
         #print('*****In get_item********')
-        f_name = 'text_' + str(ID) + '.pt'
+        f_name = 'input_' + str(ID) + '.pt'
         x_file = os.path.join(self.folder, f_name)
         X = torch.load(x_file)
-
-        f_name = 'sum_' + str(ID) + '.pt'
+        #X = nn.ConstantPad1d((0, MAX_LENGTH-X.size(0)),0)(X.t()).t()
+        
+        f_name = 'target_' + str(ID) + '.pt'
         y_file = os.path.join(self.folder, f_name)
         y = torch.load(y_file)
         #print('X: \n{}\n------\ny: \n{}\n'.format(X, y))
@@ -44,7 +45,7 @@ class WikiDataset(data.Dataset):
 
 '''===========================================================================
 '''        
-def data_loader(folder, list_IDs, batch_size = 8, shuffle = True, num_workers = 6):
+def data_loader(folder, list_IDs, batch_size, shuffle = True, num_workers = 0): #6
     
     # Declare the dataset pipline
     dataset = WikiDataset(folder, list_IDs)    
