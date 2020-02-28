@@ -10,6 +10,7 @@ import os
 import chardet
 import warnings
 import pickle
+from csv import writer
 
 '''-----------------------------------------------------------------------
 Takes file path with file name, reads it as bite returns the content.
@@ -67,4 +68,30 @@ def get_files(folder, ext=".pt"):
         if file.endswith(ext):
             files.append(file)
     return files
-
+'''-----------------------------------------------------------------
+'''
+def print_writer(file, content):
+    with open(file, 'a+', newline='') as obj:
+        headers = ['epoch', 'train_loss', 'val_loss', 'best_loss', 'time']
+        csv_writer = writer(obj)
+        is_empty = os.stat(file).st_size == 0
+        if is_empty:
+            csv_writer.writerow(headers)
+        csv_writer.writerow(content)
+'''-----------------------------------------------------------------
+'''
+def plot_writer(file, content):
+    with open(file, 'a+', newline='') as obj:
+        headers = ['epoch', 'train_loss', 'val_loss']
+        csv_writer = writer(obj)
+        is_empty = os.stat(file).st_size == 0
+        if is_empty:
+            csv_writer.writerow(headers)
+        csv_writer.writerow(content)
+'''-----------------------------------------------------------------
+'''
+def build_row(*args):
+    row =[]
+    for i in range(len(args)):
+        row.append(args[i])
+    return row

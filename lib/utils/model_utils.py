@@ -9,6 +9,7 @@ Created on Mon Nov 25 15:06:36 2019
 import os
 import sys
 import time
+from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -38,13 +39,15 @@ def model_param(model, config):
 
 '''----------------------------------------------------------------
 '''
-def get_time(start_time, end_time):
+def get_time(st, et):
     
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = elapsed_time - (elapsed_mins * 60)
+    diff = str('{}d:{}h:{}m:{}s'.\
+           format(et.day-st.day,
+           et.hour-st.hour,
+           et.minute-st.minute,
+           et.second-st.second))
 
-    return elapsed_mins, elapsed_secs
+    return diff
 
 '''----------------------------------------------------------------
 '''
@@ -54,16 +57,15 @@ def save_checkpoint(state, file, best):
 	else:
 		print ('-------------Saving the new ckpt model------')
     
-	print('Epoch: {}, Best_loss: {}'.format(state['epoch'], state['loss']))
-	torch.save(state, file)  # save checkpoint
-    
+	print('Epoch: {}, Best_loss: {:.2}'.format(state['epoch'], state['loss']))
+	torch.save(state, file)  # save checkpoint   
 
 '''----------------------------------------------------------------
 '''
 def load_checkpoint(file):
     print ('-------------Loading the model------')
     state = torch.load(file)  # save checkpoint
-    print('Epoch: {}, Best_loss: {}'.format(state['epoch'], state['loss']))
+    print('Epoch: {}, Best_loss: {:.2}'.format(state['epoch'], state['loss']))
     return state
 
 '''----------------------------------------------------------------
@@ -73,7 +75,8 @@ def total_params(model):
     for parameter in model.parameters():
             print(parameter.size(), len(parameter)) 
             print()
-
+'''----------------------------------------------------------------
+'''
 def trainable_params(model):     
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])

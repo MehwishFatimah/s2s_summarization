@@ -27,23 +27,23 @@ class Encoder(nn.Module):
         
         self.embedding = nn.Embedding(self.input_dim, self.embed_dim)
         self.embedding.weight.requires_grad = False
-        self.gru = nn.GRU(self.embed_dim, self.hidden_dim, self.n_layers, dropout=self.dropout, bidirectional=False)
+        self.gru = nn.GRU(self.embed_dim, self.hidden_dim, self.n_layers, dropout=self.dropout, batch_first= False, bidirectional=False)
         self.dropout = nn.Dropout(self.dropout)
 
 
     def forward(self, input, hidden):
-        print('---------------------------')
+        #print('---------------------------')
         #print('Encoder:\tinput: {}\n\t\t\thidden: {}'.format(input.shape, hidden.shape))
         batch_size = input.size(0)
         embedded = self.embedding(input).view(1, batch_size, self.embed_dim)
-        print('Encoder:\tembedding: {}'.format(embedded.shape))
+        #print('Encoder:\tembedding: {}'.format(embedded.shape))
         output = embedded # self.dropout(embedded)
         for i in range(self.n_layers):
             output, hidden = self.gru(output, hidden)
             #print('Encoder:\tgru-output: {}\n\t\t\tgru-hidden: {}'.format(output.shape, hidden.shape))
             #hidden = torch.cat((hidden[:1, :, :], hidden[1:, :, :]), 2) # bidirectional
-        print('Encoder:\tgru-output: {}\n\t\t\tgru-hidden: {}'.format(output.shape, hidden.shape))
-        print('---------------------------')
+        #print('Encoder:\tgru-output: {}\n\t\t\tgru-hidden: {}'.format(output.shape, hidden.shape))
+        #print('---------------------------')
         return output, hidden
 
     def initHidden(self, batch_size):

@@ -108,8 +108,9 @@ class S2SModel(nn.Module):
             #print('decoder_attention: {} all_attentions[di]: {}'.format(decoder_attention.shape, all_attentions[di].shape))    
             #all_attentions[di] = decoder_attention.data.squeeze()
             #print('all_attentions[di]: {}'.format(all_attentions[di].shape))
-
+            #print('target_tensor[di]: {}'.format(target_tensor[di].shape))
             # if not use squeeze --- throws error
+            
             loss += criterion(decoder_output, target_tensor[di].squeeze())
             '''------------------------------------------------------------
             10: Teacher forcing: select token from target tensor             

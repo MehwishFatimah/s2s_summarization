@@ -10,96 +10,8 @@ import os
 import numpy as np
 import pandas as pd
 
-import torch
 from rouge import Rouge
 
-from lib.utils.loader_utils import data_loader
-
-from .utils.file_utils import read_content
-
-# to work on single document
-'''----------------------------------------------------------------
-'''
-def get_text(data, index_word):
-    
-    text = []
-    for idx in data:
-        i = int(idx.item())
-        if i == 1: continue # remove padding
-        word = index_word[i]
-        text.append(word)
-        
-    return text    
-
-'''----------------------------------------------------------------
-'''
-def get_test_data(device, test_loader, batch_size, index_word):
-
-    texts = []
-    references = []    
-    for batch_idx, batch in enumerate(test_loader):
-        sources, targets = [i.type(torch.LongTensor).to(device) for i in batch]
-        if sources.size(0) != batch_size: continue
-        for source in sources:
-            text = get_text(source, index_word)
-            text = text[0:len(text)-1]
-            text = ' '.join(text)
-            texts.append(text)
-
-        for target in targets:
-            text = get_text(target, index_word)
-            references.append(text)    
-
-    return texts, references
-
-'''----------------------------------------------------------------
-'''
-def get_system_summaries(file, index_word):
-
-    #print('\n---------------Loading tensor-----{}-------------------\n'.format(file))
-    outputs = torch.load(file)
-    
-    systems = []
-    for batch_idx, batch in enumerate(outputs):
-        for summary in batch:
-            text = get_text(summary, index_word)
-            systems.append(text)
-
-    del outputs
-    return systems
-
-
-'''----------------------------------------------------------------
-'''
-def join(references, systems):
-
-    for i in range(len(references)):
-        references[i] = ' '.join(references[i])
-
-    for i in range(len(systems)):
-        systems[i] = ' '.join(systems[i])
-
-    # no need to return -- list pass by ref
-    #return references, systems
-
-'''----------------------------------------------------------------
-'''
-def truncate_and_join(references, systems):
-    
-    for i in range(len(systems)):
-        ref = references[i]
-        ref = ref[0:len(ref)-1]
-
-        sys = systems[i]
-        sys = sys[0:len(ref)]
-        
-        sys = ' '.join(sys)
-        ref = ' '.join(ref)
-        references[i] = ref
-        systems[i] = sys
-
-    # no need to return -- list pass by ref
-    #return references, systems
 
 '''----------------------------------------------------------------
 '''
@@ -168,65 +80,21 @@ def get_results(df, folder, out_file):
 
 '''----------------------------------------------------------------
 '''
-def rouge_evaluation(device, configure):
-	
-    i_w_f = configure['i_w_file']
-    folder = configure['out_folder']
-    index_word = eval(read_content(i_w_f))
-    
-    batch_size   = configure['batch_size']
-    test_folder   = configure['te_folder']
-    test_size     = configure['te_size']
-    test_list_ids = [*range(0, test_size, 1)]
-    test_loader  = data_loader(test_folder, test_list_ids, batch_size = batch_size, shuffle = False)
+def rouge_evaluation(device, config):
+    test_file = config['output_summaries_file']
+    file  = os.path.join(config['out_folder'], test_file)
+    df = pd.read_csv(file)
+    print(df.head())
 
-    texts, references = get_test_data(device, test_loader, batch_size, index_word)    
-    del test_loader
-
-    
-    file  = os.path.join(configure['out_folder'], configure['out_f'])
-    systems = get_system_summaries(file, index_word)
-
-    
-    if len(texts) > len(systems): texts = texts[0:len(systems)]
-    if len(references) > len(systems): references = references[0:len(systems)]
-    
-
-    #references, systems = 
-    #truncate_and_join(references, systems)
-    
-    join(references, systems)
-    print(type(systems[0]), type(references[0]))
-    
-    scores = get_scores(references, systems)
-      
-    df = pd.DataFrame({'text': texts, 'reference': references, 'system': systems, 'score': scores})
-    
-    
-    f_name =  os.path.splitext(configure['out_f'])[0] + '_and_scores.csv'
-    file = os.path.join(configure['out_folder'], f_name)
+    scores = get_scores(df['reference'], df['system'])      
+    df['score'] = scores
+    print(df.head())
+    f_name =  os.path.splitext(test_file)[0] + '_and_scores.csv'
+    file = os.path.join(config['out_folder'], f_name)
     df.to_csv(file)
-
-    get_results(df, configure['out_folder'], configure['out_f'])
+    get_results(df, config['out_folder'], test_file)
 
     return True
 
 '''----------------------------------------------------------------
 '''
-
-'''
-    unk = '<unk>'
-    for system in systems:
-        t = len(system)-1
-        print('top: {} {}'.format(t,system[t]))
-        for i in range(len(system)):
-            if i == 0: continue # first    
-            elif i == len(system)-1: continue# last
-            else:
-                if system[i-1] == unk and system[i] == unk and system[i+1] == unk:
-                    print(system[i-1], system[i], system[i+1])
-                    t = i-1
-                    print('in if: {} {}'.format(t,system[t]))
-                    break
-        print('out: {} {}'.format(t, system[t]) )
-    '''
