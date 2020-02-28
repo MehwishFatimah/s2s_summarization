@@ -9,30 +9,27 @@ import os
 from os import path
 import sys
 import time
+from datetime import datetime
 import math
+import random
 import numpy as np
 import pandas as pd
 
 import torch
 import torch.nn as nn
-from lib.utils.loader_utils import data_loader
+from torch import optim
+from torch.autograd import Variable
+
+from lib.utils.loader_utils import get_data
 from lib.utils.file_utils import get_files
 from lib.utils.model_utils import get_time
 from lib.utils.model_utils import save_checkpoint
 from lib.utils.model_utils import load_checkpoint
+from lib.utils.file_utils import print_writer
+from lib.utils.file_utils import plot_writer
+from lib.utils.file_utils import build_row
 
-
-import torch
-import torch.nn as nn
-from torch import optim
-import random
-import time
-import math
-import os
-
-import subprocess
 from lib.utils.plot_utils import showPlot
-from torch.autograd import Variable
 
 '''----------------------------------------------------------------
 '''
@@ -56,6 +53,8 @@ def train(device, model, data_loader, enc_optimizer, dec_optimizer, criterion, c
     batch_num = 1
     total_batch = len(data_loader)
     for input_tensor, target_tensor in data_loader:
+        batch_size = input_tensor.size()[0]
+        if batch_size == 1: continue
         print('\t---Train Batch: {}/{}---'.format(batch_num, total_batch))
         input_tensor, target_tensor = input_tensor.to(device), target_tensor.to(device) 
         '''------------------------------------------------------------
@@ -90,8 +89,7 @@ def train(device, model, data_loader, enc_optimizer, dec_optimizer, criterion, c
 
 '''----------------------------------------------------------------
 '''
-
-def evaluate(device, model, data_loader, criterion, testing= True):
+def evaluate(device, model, data_loader, criterion):
     ''' Evaluation loop for the model to evaluate.
     Args:
         model: A Seq2Seq model instance.
@@ -105,168 +103,136 @@ def evaluate(device, model, data_loader, criterion, testing= True):
     model.eval()
 	#declare loss
     epoch_loss = 0
-    all_predictions = []
     # we don't need to update the model parameters. only forward pass.
     with torch.no_grad():
         batch_num = 1
         total_batch = len(data_loader)
        
         for input_tensor, target_tensor in data_loader:
+            batch_size = input_tensor.size()[0]
+            if batch_size == 1: continue
             print('\t---Eval Batch: {}/{}---'.format(batch_num, total_batch))
             input_tensor, target_tensor = input_tensor.to(device), target_tensor.to(device)    
             #loss, predictions, attentions = model(input_tensor, target_tensor, criterion, teacher_forcing=False)
             loss, predictions = model(input_tensor, target_tensor, criterion, teacher_forcing=False)
-            if testing:
-                all_predictions.append(predictions)
+            
             epoch_loss += loss.item()
             batch_num +=1
 
     epoch_loss /= len(data_loader)
-    if testing:
-        return epoch_loss, all_predictions
-    else:
-        return epoch_loss
+    return epoch_loss
 
 '''----------------------------------------------------------------
 '''
 
 def train_model(device, config, model, criterion, enc_optimizer, dec_optimizer):
 
-    epochs          = config["epochs"]
-    clip            = config["grad_clip"]
-    print_every     = config["print_every"]
-    plot_every      = config["plot_every"]
+    '''-----------------------------------------------
+    Step 1: Get from config
+    -----------------------------------------------'''
+    s_epoch     = None
+    e_epoch     = config["epochs"]
+    clip        = config["grad_clip"]
+    print_every = config["print_every"]
+    plot_every  = config["plot_every"]
+    print_file  = config["print_file"]
+    plot_file   = config["plot_file"]
 
-    bm_file 	= os.path.join(config["check_point_folder"], config["best_model_file"])
-    ckpt_file   = os.path.join(config["check_point_folder"], config["check_point_file"])
-	#model_file = "best-model.pth.tar"
+    '''-----------------------------------------------
+    Step 2: Get data_loaders
+    -----------------------------------------------'''
+    train_loader = get_data(config, "train")
+    val_loader   = get_data(config, "val")
 
-    batch_size     = config["batch_size"]
-    train_folder   = config["train_folder"]
-    train_size     = config["train_docs"] + 1
-    train_list_ids = [*range(1, train_size, 1)]
-    train_loader = data_loader(train_folder, train_list_ids, batch_size = batch_size)
-
-    val_folder   = config["val_folder"]
-    val_size     = config["val_docs"] + 1
-    val_list_ids = [*range(1, val_size, 1)]
-    val_loader = data_loader(val_folder, val_list_ids, batch_size = batch_size)
-
+    '''-----------------------------------------------
+    Step 3: From scratch or resume
+    -----------------------------------------------'''
+    # TO DO how to make it in a function
+    bm_file     = os.path.join(config["check_point_folder"], config["best_model_file"])
+    ckpt_file   = os.path.join(config["check_point_folder"], config["check_point_file"]) 
+    #model_file = "best-model.pth.tar"
+    
     if path.exists(ckpt_file):
         checkpoint 		= load_checkpoint(ckpt_file)
         s_epoch 		= checkpoint["epoch"]
         best_valid_loss = checkpoint["loss"]
 		
-        model.load_state_dict(checkpoint["state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer"])
+        model.load_state_dict(checkpoint["model_state"])
+        enc_optimizer.load_state_dict(checkpoint["enc_optimizer"])
+        dec_optimizer.load_state_dict(checkpoint["dec_optimizer"])
 	
     elif path.exists(bm_file):
         checkpoint 		= load_checkpoint(bm_file)
         s_epoch 		= checkpoint["epoch"]
         best_valid_loss = checkpoint["loss"]
 		
-        model.load_state_dict(checkpoint["state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer"])
+        model.load_state_dict(checkpoint["model_state"])
+        enc_optimizer.load_state_dict(checkpoint["enc_optimizer"])
+        dec_optimizer.load_state_dict(checkpoint["dec_optimizer"])
 
-    else:
+    else: # from scratch
         s_epoch = 1
         best_valid_loss = float('inf')
-
-    e_epoch = config["epochs"]
-    print('s_epoch: {} | e_epoch: {}'.format(s_epoch, e_epoch))
-
-    e_count = []
-    t_loss = []
-    v_loss = []
-    b_loss = []
-
-    prev_gpu_memory_usage = 0
-    plot_train_losses = []
-    plot_valid_losses = []
-    plot_epochs = []
-    
+   
     plot_train_loss_total = 0  
     plot_valid_loss_total = 0  
+    '''-----------------------------------------------
+    Step 2: Get data_loaders
+    -----------------------------------------------'''
 
     # Training and evluation using train and val sets
     for epoch in range(s_epoch, e_epoch+1):
-        print('--------Epoch:{} starts-----------------------------\n'.format(epoch))
+        print('--------Epoch:{} starts--------\n'.format(epoch))
         train_loss = 0
         valid_loss = 0
         '''------------------------------------------------------------
         5: Get batches from loader and pass to train             
         ------------------------------------------------------------'''
-        start_time = time.time()
+        start_time = datetime.now()
         train_loss = train(device, model, train_loader, enc_optimizer, dec_optimizer, criterion, clip)
-        valid_loss = evaluate(device,model, val_loader, criterion, testing =False)
-        end_time = time.time()
+        valid_loss = evaluate(device, model, val_loader, criterion)
+        end_time = datetime.now()
+        time_diff = get_time(start_time, end_time)
         
         plot_train_loss_total += train_loss
         plot_valid_loss_total += valid_loss
-        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
         
-        '''
-        curr_gpu_memory_usage = get_gpu_memory_usage(device_id=torch.cuda.current_device())
-        diff_gpu_memory_usage = curr_gpu_memory_usage - prev_gpu_memory_usage
-        prev_gpu_memory_usage = curr_gpu_memory_usage
-        print(curr_gpu_memory_usage)
-        '''
-        # add proper path for model -
-        # TO DO per epoch - store - best model --resume training
-        print('Epoch: {}/{} ==> {:.0f}% | Time: {}m {}s'.format(epoch, epochs, epoch/epochs*100, epoch_mins, epoch_secs))
-        #print(torch.cuda.get_device_properties(device).total_memory)
-        print('Train loss: {:.2f}'.format(train_loss))
-        print('Valid loss: {:.2f}'.format(valid_loss))
-        print('plot_train_loss_total: {:.2f}'.format(plot_train_loss_total))
-        print('plot_valid_loss_total: {:.2f}'.format(plot_valid_loss_total))
-        print()
-
-        print('best vs current: {} | {}'.format(best_valid_loss, valid_loss))
+        print('Epoch: {}/{} ==> {:.0f}% | Time: {}'.format(epoch, e_epoch, epoch/e_epoch*100, time_diff))
+        
         is_best = bool(valid_loss < best_valid_loss)
         best_valid_loss = (min(valid_loss, best_valid_loss))
-        print('best vs current: {} | {}'.format(best_valid_loss, valid_loss))
 
-        e_count.append(epoch)
-        t_loss.append(train_loss)
-        v_loss.append(valid_loss)
-        b_loss.append(best_valid_loss)
+        print_row = build_row(epoch, train_loss, valid_loss, best_valid_loss, time_diff)
+        print_writer(print_file, print_row)
 
         # Save checkpoint if is a new best
         if is_best:
             save_checkpoint({'epoch': epoch,
-	    				 	 'state_dict': model.state_dict(),
-	    				 	 'optimizer': optimizer.state_dict(),
+	    				 	 'model_state': model.state_dict(),
+	    				 	 'enc_optimizer': enc_optimizer.state_dict(),
+                             'dec_optimizer': dec_optimizer.state_dict(),                             
 	    				 	 'loss': best_valid_loss}, bm_file, True)  
 
         if epoch%5 == 0: 
             save_checkpoint({'epoch': epoch,
-	    					 'state_dict': model.state_dict(),
-	    				     'optimizer': optimizer.state_dict(),
+	    					 'model_state': model.state_dict(),
+                             'enc_optimizer': enc_optimizer.state_dict(),
+                             'dec_optimizer': dec_optimizer.state_dict(),
 	    				     'loss': best_valid_loss}, ckpt_file, False)  
 
         if epoch % plot_every == 0:
-            plot_epochs.append(epoch)
             
-            plot_train_loss_avg = plot_train_loss_total/plot_every
-            print('plot_train_loss_avg {:.2f}'.format(plot_train_loss_avg))
-            plot_train_losses.append(plot_train_loss_avg)
-            
+            plot_train_loss_avg = plot_train_loss_total/plot_every 
             plot_valid_loss_avg = plot_valid_loss_total/plot_every
-            print('plot_valid_loss_avg {:.2f}'.format(plot_valid_loss_avg))
-            plot_valid_losses.append(plot_valid_loss_avg)
+            
+            plot_row = build_row(epoch, plot_train_loss_avg, plot_valid_loss_avg)
+            plot_writer(plot_file, plot_row)
             
             plot_train_loss_total = 0  
             plot_valid_loss_total = 0
-        print()
-        print('--------Epoch:{} ends-------------------------------------------\n'.format(epoch))
         
-    showPlot(plot_epochs, plot_train_losses, plot_valid_losses)
+    showPlot(config["out_folder"], plot_file)
 
-    df = pd.DataFrame({'epoch': e_count, 't_loss': t_loss, 'v_loss': v_loss, 'b_loss': b_loss})
-    f_name = str(int(epoch)) + '_' + config['loss_f']
-    file = os.path.join(config['ckpt_folder'], f_name)
-    df.to_csv(file)
-    print(len(df), df.columns, df.head(5))
     return True
 
 

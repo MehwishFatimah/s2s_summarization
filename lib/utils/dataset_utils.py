@@ -197,6 +197,23 @@ def vectorize(vocab, text):
     #print(vector)
     return vector 
 
+
+'''---------------------------------------------------------------'''
+# TO DO: WHY actual vocab gives unk
+def tensor_to_text(vocab, vector):
+    
+    #print(vocab.n_words)
+    words = list()
+    for i in range(len(vector)):
+        idx = vector[i]
+        if idx == PAD_index: continue
+        words.append(vocab.index2word[idx])
+    print(vector)
+    words = ' '.join(map(str, words)) 
+    #print(words)
+    return words 
+
+
 '''---------------------------------------------------------------'''
 def text_to_tensor(vocab, text, max_len):
     #print(lang.name)

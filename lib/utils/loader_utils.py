@@ -29,7 +29,7 @@ class WikiDataset(data.Dataset):
     def __getitem__(self, index):
 
         ID = self.list_IDs[index]
-        #print('ID: {}'.format(ID))
+        print('ID: {}'.format(ID))
         # Load data and get label
         #print('*****In get_item********')
         f_name = 'input_' + str(ID) + '.pt'
@@ -45,12 +45,38 @@ class WikiDataset(data.Dataset):
 
 '''===========================================================================
 '''        
-def data_loader(folder, list_IDs, batch_size, shuffle = True, num_workers = 0): #6
+def data_loader(folder, list_IDs, batch_size=1, shuffle = True, num_workers = 0): #6
     
     # Declare the dataset pipline
     dataset = WikiDataset(folder, list_IDs)    
     loader = data.DataLoader(dataset = dataset, batch_size = batch_size, shuffle = shuffle, num_workers = num_workers)
-    print('LOADER:{}---------------------\n{}'.format(type(loader), loader))
+    #print('LOADER:{}---------------------\n{}'.format(type(loader), loader))
     
     return loader
 
+
+def get_data(config, type="train", shuffle = True, num_workers = 0): 
+    
+    if type == "train":
+        batch_size = config["batch_size"]
+        folder   = config["train_folder"]
+        size     = config["train_docs"] + 1    
+        list_ids = [*range(1, size, 1)]
+        loader   = data_loader(folder, list_ids, batch_size = batch_size)
+        return loader
+
+    if type == "val":
+        batch_size   = config["batch_size"]
+        folder   = config["val_folder"]
+        size     = config["val_docs"] + 1
+        list_ids = [*range(1, size, 1)]
+        loader   = data_loader(folder, list_ids, batch_size = batch_size)
+        return loader
+        
+    if type == "test": # test
+        batch_size   = config["batch_size"]
+        folder   = config["test_folder"]
+        size     = config["test_docs"] + 1
+        list_ids = [*range(1, size, 1)]
+        loader   = data_loader(folder, list_ids, batch_size = batch_size, shuffle = False)
+        return loader

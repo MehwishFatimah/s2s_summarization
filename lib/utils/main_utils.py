@@ -15,7 +15,7 @@ from lib.utils.memory_utils import get_size
 from lib.utils.data_utils import process_data
 from lib.utils.dataset_utils import process_vacabs
 from lib.utils.dataset_utils import process_tensors
-from lib.utils.dataset_utils import object_load
+
 '''----------------------------------------------------------------
 '''
 
@@ -41,18 +41,6 @@ def data_processing(config):
     print ('\n-------------------Memory and time usage: {:.2f} MBs in {:.2f} seconds.--------------------\n'.\
         format((resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024), (time.time() - start_time)))
 
-'''----------------------------------------------------------------
-'''
-def load_vocabs(config):
-    
-    file = os.path.join(config["dict_folder"], config["text_dict_c"])
-    input_vocab = object_load(file)
-    print(input_vocab.n_words)
-    file = os.path.join(config["dict_folder"], config["sum_dict_c"])
-    output_vocab = object_load(file)
-    print(output_vocab.n_words)
-
-    return input_vocab, output_vocab
 
 '''----------------------------------------------------------------
 '''

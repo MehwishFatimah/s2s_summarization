@@ -151,7 +151,7 @@ class AttentionDecoder(nn.Module):
 
     def forward(self, input, hidden, encoder_outputs):
         # Note: we run this one step at a time
-        print('---------------------------')
+        #print('---------------------------')
         #print('Decoder:\tinput: {}\n\t\t\thidden: {}\n\t\t\tencoder_outputs: {}'\
         #    .format(input.shape, hidden.shape, encoder_outputs.shape))
         # Get the embedding of the current input word (last output word)
@@ -161,7 +161,7 @@ class AttentionDecoder(nn.Module):
         embedded = self.embedding_dropout(embedded)
         #print('Decoder:\tembedded : {}'.format(embedded.shape))
         embedded = embedded.view(1, batch_size, self.emb_dim) # S=1 x B x N
-        print('Decoder:\tembedded : {}'.format(embedded.shape))
+        #print('Decoder:\tembedded : {}'.format(embedded.shape))
         
         # Get current hidden state from input word and last hidden state
         rnn_output, hidden = self.gru(embedded, hidden)
@@ -191,9 +191,9 @@ class AttentionDecoder(nn.Module):
 
         # Finally predict next token (Luong eq. 6, without softmax)
         output = self.out(concat_output)
-        print('Decoder:\toutput: {}'.format(output.shape))
+        #print('Decoder:\toutput: {}'.format(output.shape))
         # Return final output, hidden state, and attention weights (for visualization)
-        print('---------------------------')
+        #print('---------------------------')
         return output, hidden #, attn_weights
         
 
